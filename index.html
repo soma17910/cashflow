@@ -157,6 +157,13 @@
   table.month tr.bal td{font-weight:800;background:#f8fafc}
   table.month td.negcell{color:var(--red)!important}
   table.month tr.groupHead td{background:#fbfcfe;color:var(--muted);font-weight:700;text-align:left;font-size:11.5px}
+  table.month tr.clickable{cursor:pointer}
+  table.month tr.clickable:hover td{background:#eff6ff}
+  table.month tr.clickable td.lab .caret{display:inline-block;width:14px;color:#94a3b8;font-size:10px}
+  table.month tr.bdrow td{font-weight:400;color:#64748b;background:#fcfdff}
+  table.month tr.bdrow td.lab{font-weight:400;color:#475569;padding-left:24px;background:#fcfdff}
+  table.month tr.bdtax td{background:#f5f3ff}
+  table.month tr.bdtax td.lab{background:#f5f3ff;color:#5b21b6}
 
   .stresswrap{margin-top:20px}
   .stress-controls{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--soft);
@@ -308,6 +315,7 @@
       <canvas id="chart" width="1040" height="360"></canvas>
     </div>
 
+    <p class="sec-desc" style="margin:20px 0 -8px">📋 月次キャッシュフロー表　<span style="color:var(--brand)">「収入」「支出」の行をタップすると内訳（税金の金額を含む）が開きます</span></p>
     <div class="tblwrap">
       <table class="month" id="monthTable"></table>
     </div>
@@ -894,28 +902,38 @@ function renderMonthTable(){
   r.months.forEach(m=>h+=`<th>${m.label}</th>`);
   h+='<th>年間合計</th></tr></thead><tbody>';
 
-  // 収入行
-  h+=`<tr class="income"><td class="lab">収入</td>`;
+  const isTax=name=>/税/.test(name);
+  // 内訳明細行（定額の各項目は毎月同額。一時収支は月ごと）
+  function detailRows(kind){
+    const items = kind==='income' ? r.breakdown.income : r.breakdown.expense;
+    const spotKey = kind==='income' ? 'spotInc' : 'spotExp';
+    const spotLabel = kind==='income' ? '一時収入（ボーナス等）' : '一時支出（税納付・設備等）';
+    let out='';
+    items.forEach(it=>{
+      const taxCls = isTax(it.name) ? ' bdtax' : '';
+      out+=`<tr class="bdrow${taxCls} bd-${kind}" style="display:none"><td class="lab">${it.name}</td>`;
+      r.months.forEach(()=>{ out+=`<td>${money(it.amt)}</td>`; });
+      out+=`<td>${money(it.amt*12)}</td></tr>`;
+    });
+    if(r.months.some(m=>m[spotKey]>0)){
+      out+=`<tr class="bdrow bd-${kind}" style="display:none"><td class="lab">${spotLabel}</td>`;
+      let s=0; r.months.forEach(m=>{ out+=`<td>${m[spotKey]?money(m[spotKey]):'—'}</td>`; s+=m[spotKey]; });
+      out+=`<td>${money(s)}</td></tr>`;
+    }
+    return out;
+  }
+
+  // 収入行（クリックで内訳を開閉）
+  h+=`<tr class="income clickable" onclick="toggleBreakdown('income')"><td class="lab"><span class="caret" id="caret-income">▶</span>収入</td>`;
   let sum=0;r.months.forEach(m=>{h+=`<td>${money(m.inc)}</td>`;sum+=m.inc;});
   h+=`<td>${money(sum)}</td></tr>`;
+  h+=detailRows('income');
 
-  // うち一時収入
-  if(r.months.some(m=>m.spotInc>0)){
-    h+=`<tr class="income"><td class="lab" style="font-weight:400;color:#6b7684">　うち一時収入</td>`;
-    let s=0;r.months.forEach(m=>{h+=`<td style="color:#94a3b8">${m.spotInc?money(m.spotInc):'—'}</td>`;s+=m.spotInc;});
-    h+=`<td>${money(s)}</td></tr>`;
-  }
-
-  // 支出行
-  h+=`<tr class="expense"><td class="lab">支出</td>`;
+  // 支出行（クリックで内訳を開閉）
+  h+=`<tr class="expense clickable" onclick="toggleBreakdown('expense')"><td class="lab"><span class="caret" id="caret-expense">▶</span>支出</td>`;
   sum=0;r.months.forEach(m=>{h+=`<td>${money(m.exp)}</td>`;sum+=m.exp;});
   h+=`<td>${money(sum)}</td></tr>`;
-
-  if(r.months.some(m=>m.spotExp>0)){
-    h+=`<tr class="expense"><td class="lab" style="font-weight:400;color:#6b7684">　うち一時支出</td>`;
-    let s=0;r.months.forEach(m=>{h+=`<td style="color:#94a3b8">${m.spotExp?money(m.spotExp):'—'}</td>`;s+=m.spotExp;});
-    h+=`<td>${money(s)}</td></tr>`;
-  }
+  h+=detailRows('expense');
 
   // 収支
   h+=`<tr class="net"><td class="lab">月間収支</td>`;
@@ -929,6 +947,16 @@ function renderMonthTable(){
 
   h+='</tbody>';
   t.innerHTML=h;
+}
+
+// 収入／支出の内訳行の開閉
+function toggleBreakdown(kind){
+  const rows=document.querySelectorAll('#monthTable tr.bd-'+kind);
+  if(!rows.length)return;
+  const showing = rows[0].style.display!=='none';
+  rows.forEach(tr=>{ tr.style.display = showing?'none':''; });
+  const car=document.getElementById('caret-'+kind);
+  if(car) car.textContent = showing?'▶':'▼';
 }
 
 /* ---------- グラフ ---------- */
