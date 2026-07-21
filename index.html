@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>キャッシュフロー表メーカー｜1年先の収支と必要な手元資金がわかる</title>
+<!-- iPhone / PWA（ホーム画面に追加してアプリのように使える） -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="キャッシュフロー">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2563eb">
+<meta name="description" content="個人・個人事業主・法人向けのキャッシュフロー表。1年先の収支と、突発的な支出に備えた最低限の手元資金がわかります。">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<style>
+  :root{
+    --bg:#0f1720;
+    --panel:#ffffff;
+    --ink:#1f2933;
+    --muted:#6b7684;
+    --line:#e3e8ee;
+    --brand:#2563eb;
+    --brand-dark:#1d4ed8;
+    --green:#10b981;
+    --green-bg:#ecfdf5;
+    --red:#ef4444;
+    --red-bg:#fef2f2;
+    --amber:#f59e0b;
+    --amber-bg:#fffbeb;
+    --indigo:#6366f1;
+    --soft:#f6f8fb;
+    --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+    color:var(--ink);
+    background:linear-gradient(180deg,#eef2f7 0%,#e7edf5 100%);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 16px 80px}
+  header.top{
+    background:linear-gradient(120deg,#1e3a8a 0%,#2563eb 55%,#3b82f6 100%);
+    color:#fff;padding:26px 16px 30px;text-align:center;
+    box-shadow:var(--shadow);
+  }
+  header.top h1{margin:0;font-size:22px;letter-spacing:.02em}
+  header.top p{margin:8px auto 0;max-width:720px;font-size:13.5px;opacity:.92}
+
+  /* ステップバー */
+  .steps{display:flex;gap:8px;justify-content:center;margin:18px 0 2px;flex-wrap:wrap}
+  .steps .st{font-size:12px;color:var(--muted);background:#fff;border:1px solid var(--line);
+    padding:6px 14px;border-radius:999px;display:flex;align-items:center;gap:6px}
+  .steps .st b{background:#cbd5e1;color:#fff;width:18px;height:18px;border-radius:50%;
+    display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+  .steps .st.active{color:var(--brand);border-color:#bfdbfe;background:#eff6ff}
+  .steps .st.active b{background:var(--brand)}
+  .steps .st.done b{background:var(--green)}
+
+  .card{background:var(--panel);border-radius:16px;box-shadow:var(--shadow);
+    padding:22px;margin-top:18px;border:1px solid rgba(16,24,40,.04)}
+  h2.sec{font-size:17px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .sec-desc{color:var(--muted);font-size:12.5px;margin:0 0 16px}
+
+  /* 入口選択 */
+  .entry-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .entry{cursor:pointer;border:2px solid var(--line);border-radius:16px;padding:24px 18px;
+    text-align:center;transition:.18s;background:#fff;position:relative}
+  .entry:hover{border-color:var(--brand);transform:translateY(-3px);box-shadow:var(--shadow)}
+  .entry .emo{font-size:40px;line-height:1}
+  .entry h3{margin:12px 0 4px;font-size:18px}
+  .entry p{margin:0;font-size:12px;color:var(--muted)}
+  .entry .tag{display:inline-block;margin-top:12px;font-size:11px;color:var(--brand);
+    background:#eff6ff;border-radius:999px;padding:3px 10px}
+
+  /* フォーム */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 22px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px 20px}
+  .field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:4px}
+  .field .hint{font-size:11px;color:#9aa5b1}
+  .inp{position:relative}
+  .inp input{width:100%;padding:9px 34px 9px 12px;border:1px solid var(--line);border-radius:10px;
+    font-size:15px;font-family:inherit;text-align:right;background:#fff;transition:.15s}
+  .inp input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+  .inp .yen{position:absolute;right:11px;top:50%;transform:translateY(-50%);font-size:12px;color:#9aa5b1}
+  .inp.pct input{padding-right:28px}
+  .inp.pct .yen{content:"%"}
+
+  .subhead{font-size:13.5px;font-weight:700;margin:22px 0 10px;padding-bottom:6px;
+    border-bottom:2px solid var(--line);display:flex;align-items:center;gap:8px;color:#334155}
+  .subhead .dot{width:9px;height:9px;border-radius:2px}
+  .g-income .dot{background:var(--green)}
+  .g-fixed .dot{background:var(--brand)}
+  .g-var .dot{background:var(--amber)}
+  .g-tax .dot{background:var(--indigo)}
+  .g-save .dot{background:#0ea5e9}
+  .g-spot .dot{background:var(--red)}
+
+  .row-note{background:var(--soft);border-radius:10px;padding:10px 14px;font-size:12px;
+    color:var(--muted);margin:6px 0 4px}
+
+  /* ボタン */
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+  .btn{border:none;border-radius:10px;padding:12px 22px;font-size:14px;font-weight:700;
+    cursor:pointer;font-family:inherit;transition:.15s}
+  .btn.primary{background:var(--brand);color:#fff}
+  .btn.primary:hover{background:var(--brand-dark)}
+  .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn.ghost:hover{border-color:var(--brand);color:var(--brand)}
+  .btn.mini{padding:7px 14px;font-size:12.5px}
+
+  /* 一時支出テーブル */
+  table.spot{width:100%;border-collapse:collapse;font-size:13px}
+  table.spot th,table.spot td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
+  table.spot th{color:var(--muted);font-weight:600;font-size:12px}
+  table.spot input,table.spot select{width:100%;padding:7px 9px;border:1px solid var(--line);
+    border-radius:8px;font-family:inherit;font-size:13px}
+  table.spot input[type=number]{text-align:right}
+  .del{color:var(--red);cursor:pointer;border:none;background:none;font-size:16px;padding:0 4px}
+
+  /* 出力 */
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .kpi{border-radius:14px;padding:16px;border:1px solid var(--line);background:#fff}
+  .kpi .lab{font-size:12px;color:var(--muted)}
+  .kpi .val{font-size:24px;font-weight:800;margin-top:4px;letter-spacing:-.01em}
+  .kpi .sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .kpi.pos .val{color:var(--green)}
+  .kpi.neg .val{color:var(--red)}
+  .kpi.hl{background:linear-gradient(135deg,#eff6ff,#f5f3ff);border-color:#c7d2fe}
+
+  .alert{border-radius:12px;padding:14px 16px;font-size:13.5px;margin-top:16px;display:flex;gap:10px;align-items:flex-start}
+  .alert .ic{font-size:18px;line-height:1.2}
+  .alert.ok{background:var(--green-bg);color:#065f46;border:1px solid #a7f3d0}
+  .alert.warn{background:var(--amber-bg);color:#92400e;border:1px solid #fde68a}
+  .alert.bad{background:var(--red-bg);color:#991b1b;border:1px solid #fecaca}
+
+  .chartbox{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 12px 8px}
+  .chart-title{font-size:13px;font-weight:700;margin:0 6px 6px;color:#334155}
+  canvas{width:100%;height:auto;display:block}
+  .legend{display:flex;gap:16px;font-size:11.5px;color:var(--muted);margin:6px 8px 2px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+  /* 月次テーブル */
+  .tblwrap{overflow-x:auto;margin-top:20px;border:1px solid var(--line);border-radius:14px}
+  table.month{width:100%;border-collapse:collapse;font-size:12.5px;min-width:820px}
+  table.month th,table.month td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+  table.month thead th{background:#f8fafc;color:#475569;position:sticky;top:0;font-weight:700}
+  table.month td.lab,table.month th.lab{text-align:left;position:sticky;left:0;background:#fff;font-weight:600}
+  table.month thead th.lab{background:#f8fafc;z-index:2}
+  table.month tr.income td{color:#047857}
+  table.month tr.expense td{color:#334155}
+  table.month tr.net td{font-weight:700;border-top:2px solid var(--line)}
+  table.month tr.bal td{font-weight:800;background:#f8fafc}
+  table.month td.negcell{color:var(--red)!important}
+  table.month tr.groupHead td{background:#fbfcfe;color:var(--muted);font-weight:700;text-align:left;font-size:11.5px}
+
+  .stresswrap{margin-top:20px}
+  .stress-controls{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--soft);
+    padding:12px 14px;border-radius:12px;font-size:13px}
+  .stress-controls input[type=range]{flex:1;min-width:160px}
+
+  .foot{text-align:center;color:var(--muted);font-size:11.5px;margin-top:26px;line-height:1.7}
+  .toolbar{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-bottom:8px}
+  .pill{font-size:11px;background:#eff6ff;color:var(--brand);border-radius:999px;padding:4px 12px}
+  .hidden{display:none}
+
+  @media(max-width:820px){
+    .entry-grid{grid-template-columns:1fr}
+    .grid2,.grid3{grid-template-columns:1fr}
+    .kpi-grid{grid-template-columns:1fr 1fr}
+    header.top h1{font-size:18px}
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>💰 キャッシュフロー表メーカー</h1>
+  <p>個人・個人事業主・法人に対応。これからの<b>12か月の収支</b>と、突発的な支出に備えて<b>最低いくら手元に残しておくべきか</b>が一目でわかります。</p>
+</header>
+
+<div class="wrap">
+
+  <div class="steps" id="steps">
+    <div class="st active" data-step="0"><b>1</b>区分を選ぶ</div>
+    <div class="st" data-step="1"><b>2</b>入力する</div>
+    <div class="st" data-step="2"><b>3</b>結果を見る</div>
+  </div>
+
+  <!-- STEP 1: 入口 -->
+  <section class="card" id="screen-entry">
+    <h2 class="sec">🚪 まず、あなたの区分を選んでください</h2>
+    <p class="sec-desc">選んだ区分に合わせて入力項目とアウトプットが自動で切り替わります。</p>
+    <div class="entry-grid">
+      <div class="entry" onclick="startProfile('kojin')">
+        <div class="emo">🧑</div>
+        <h3>個人</h3>
+        <p>会社員・主婦・年金生活など<br>家計のキャッシュフロー</p>
+        <span class="tag">家計簿より一歩先へ</span>
+      </div>
+      <div class="entry" onclick="startProfile('kojinjigyo')">
+        <div class="emo">🧑‍💻</div>
+        <h3>個人事業主</h3>
+        <p>フリーランス・自営業<br>事業＋生活の両方を管理</p>
+        <span class="tag">税金・保険料も自動考慮</span>
+      </div>
+      <div class="entry" onclick="startProfile('houjin')">
+        <div class="emo">🏢</div>
+        <h3>法人</h3>
+        <p>中小企業・スタートアップ<br>資金繰り表として</p>
+        <span class="tag">借入返済・設備投資対応</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2: 入力 -->
+  <section class="card hidden" id="screen-input">
+    <div class="toolbar">
+      <span class="pill" id="profileBadge"></span>
+      <button class="btn ghost mini" onclick="loadSample()">サンプル入力</button>
+      <button class="btn ghost mini" onclick="backToEntry()">← 区分を選び直す</button>
+    </div>
+    <h2 class="sec" id="inputTitle">入力</h2>
+    <p class="sec-desc" id="inputDesc"></p>
+
+    <div class="grid3">
+      <div class="field">
+        <label>現在の手元キャッシュ（預金＋現金）<span class="hint">スタート時点の残高</span></label>
+        <div class="inp"><input type="number" id="startCash" placeholder="0"><span class="yen">円</span></div>
+      </div>
+      <div class="field">
+        <label>開始月</label>
+        <div class="inp"><select id="startMonth" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit"></select></div>
+      </div>
+      <div class="field">
+        <label>金額の入力単位</label>
+        <div class="inp"><select id="unit" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit" onchange="renderOutput()">
+          <option value="1">円</option>
+          <option value="10000" selected>万円</option>
+        </select></div>
+      </div>
+    </div>
+    <div class="row-note">💡 金額は基本「毎月の平均額」を入力します。ボーナスや年払いなど、特定の月だけの収支は下の「⑤ 一時的な収入・支出」で月を指定して登録できます。</div>
+
+    <div id="dynamicFields"></div>
+
+    <!-- 一時支出 共通 -->
+    <div class="subhead g-spot"><span class="dot"></span>⑤ 一時的な収入・支出（ボーナス・税金・旅行・設備投資など）</div>
+    <p class="sec-desc" style="margin-top:-4px">特定の月にだけ発生するものを登録します。「突発的な支出」をここに入れてシミュレーションもできます。</p>
+    <div class="tblwrap" style="border:none;margin-top:0">
+      <table class="spot" id="spotTable">
+        <thead><tr><th style="width:34%">項目</th><th style="width:20%">区分</th><th style="width:20%">月</th><th style="width:22%">金額</th><th></th></tr></thead>
+        <tbody id="spotBody"></tbody>
+      </table>
+    </div>
+    <button class="btn ghost mini" style="margin-top:10px" onclick="addSpotRow()">＋ 行を追加</button>
+
+    <div class="btnrow">
+      <button class="btn primary" onclick="calcAndShow()">📊 結果を計算する</button>
+      <button class="btn ghost" onclick="saveData()">💾 入力を保存</button>
+    </div>
+  </section>
+
+  <!-- STEP 3: 出力 -->
+  <section class="card hidden" id="screen-output">
+    <div class="toolbar">
+      <span class="pill" id="outBadge"></span>
+      <button class="btn ghost mini" onclick="backToInput()">← 入力に戻る</button>
+      <button class="btn ghost mini" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
+    </div>
+    <h2 class="sec">📈 これからの12か月の見通し</h2>
+    <p class="sec-desc" id="outSummary"></p>
+
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div id="cashAlert"></div>
+
+    <!-- 最低必要キャッシュ -->
+    <div class="card" style="margin-top:18px;background:linear-gradient(135deg,#f0f9ff,#eef2ff);border:1px solid #c7d2fe">
+      <h2 class="sec">🛡️ 突発的な支出への備え ＝ 最低いくら手元に残す？</h2>
+      <p class="sec-desc" id="bufferDesc"></p>
+      <div class="kpi-grid" id="bufferGrid"></div>
+      <div id="bufferAlert"></div>
+    </div>
+
+    <!-- ストレステスト -->
+    <div class="stresswrap">
+      <h2 class="sec">🌪️ ストレステスト（もしもシミュレーション）</h2>
+      <p class="sec-desc">収入の減少や突発的な出費が起きたとき、残高がどうなるかを試せます。スライダーを動かしてください。</p>
+      <div class="stress-controls">
+        <div>収入が <b id="incLabel">0</b>% 減る</div>
+        <input type="range" id="incDrop" min="0" max="50" step="5" value="0" oninput="renderChart()">
+        <div style="margin-left:12px">突発出費 <b id="shockLabel">0</b> 万円（<span id="shockMonthLabel"></span>月）</div>
+        <input type="range" id="shockAmt" min="0" max="300" step="10" value="0" oninput="renderChart()">
+      </div>
+    </div>
+
+    <div class="chartbox">
+      <div class="chart-title">📉 手元キャッシュ残高の推移</div>
+      <div class="legend">
+        <span><i style="background:#2563eb"></i>基本シナリオ</span>
+        <span><i style="background:#ef4444"></i>ストレス時</span>
+        <span><i style="background:#94a3b8;height:2px;border-radius:0"></i>最低ライン（危険水域）</span>
+      </div>
+      <canvas id="chart" width="1040" height="360"></canvas>
+    </div>
+
+    <div class="tblwrap">
+      <table class="month" id="monthTable"></table>
+    </div>
+
+    <div class="foot" id="advice"></div>
+  </section>
+
+  <p class="foot">
+    このアプリはブラウザ上だけで計算し、データは外部に送信されません（入力保存はこの端末のみ）。<br>
+    税額・保険料は簡易的な概算です。正確な数値は税理士・社労士等の専門家にご確認ください。
+  </p>
+</div>
+
+<script>
+/* =========================================================
+   データ定義：区分ごとの入力項目
+   ========================================================= */
+const YEN='円';
+const PROFILES={
+  kojin:{
+    name:'個人（家計）',
+    title:'個人（家計）のキャッシュフロー入力',
+    desc:'ご家庭・ご自身の毎月の平均的な収入と支出を入力してください。',
+    groups:[
+      {key:'income',cls:'g-income',label:'① 収入（手取り）',fields:[
+        ['salary','給与（手取り月額）','税・社会保険を引いた実際の振込額'],
+        ['sideIncome','副業・その他収入',''],
+        ['pension','年金・仕送り等',''],
+      ]},
+      {key:'fixed',cls:'g-fixed',label:'② 固定費（毎月ほぼ一定）',fields:[
+        ['rent','家賃 / 住宅ローン',''],
+        ['utility','水道・光熱費',''],
+        ['comm','通信費（スマホ・ネット）',''],
+        ['insurance','保険料（生命・医療・自動車）',''],
+        ['subsc','サブスク・習い事・会費',''],
+        ['carLoan','自動車ローン・その他ローン',''],
+        ['edu','教育費（学費・塾）',''],
+      ]},
+      {key:'variable',cls:'g-var',label:'③ 変動費（月によって変わる）',fields:[
+        ['food','食費',''],
+        ['daily','日用品・消耗品',''],
+        ['transport','交通費・ガソリン代',''],
+        ['medical','医療費',''],
+        ['social','交際費・外食',''],
+        ['hobby','趣味・娯楽・被服',''],
+        ['other','その他',''],
+      ]},
+      {key:'save',cls:'g-save',label:'④ 貯蓄・投資（毎月の積立）',fields:[
+        ['saving','貯蓄（積立）',''],
+        ['invest','投資（つみたてNISA・iDeCo等）',''],
+      ]},
+    ],
+  },
+  kojinjigyo:{
+    name:'個人事業主',
+    title:'個人事業主のキャッシュフロー入力',
+    desc:'事業のお金と生活のお金の両方を入力します。税金・国保・年金も概算で見込みます。',
+    groups:[
+      {key:'income',cls:'g-income',label:'① 事業収入',fields:[
+        ['sales','売上（月平均）',''],
+        ['otherRev','その他収入（補助金・雑収入）',''],
+      ]},
+      {key:'fixed',cls:'g-fixed',label:'② 事業経費',fields:[
+        ['cogs','仕入・材料費',''],
+        ['outsource','外注費',''],
+        ['bizRent','事務所・店舗 家賃',''],
+        ['bizUtil','水道・光熱費（事業分）',''],
+        ['bizComm','通信費',''],
+        ['ad','広告宣伝費',''],
+        ['supply','消耗品費',''],
+        ['bizTravel','旅費交通費',''],
+        ['entertain','接待交際費',''],
+        ['bizOther','その他経費',''],
+      ]},
+      {key:'tax',cls:'g-tax',label:'③ 税金・社会保険（月あたり積立目安）',fields:[
+        ['incomeTaxRate','所得税・住民税の見込み率(%)','所得に対する概算。不明なら15前後'],
+        ['healthIns','国民健康保険（月額）',''],
+        ['pensionIns','国民年金（月額）','2026年目安 約17,500円'],
+        ['consumeTax','消費税の月積立（課税事業者のみ）','免税事業者は0'],
+      ]},
+      {key:'variable',cls:'g-var',label:'④ 生活費（家計）',fields:[
+        ['living','生活費 合計（家賃・食費など）','事業按分後の家庭の生活費'],
+        ['lifeInsurance','個人の保険料',''],
+        ['saving','貯蓄・投資',''],
+      ]},
+    ],
+  },
+  houjin:{
+    name:'法人',
+    title:'法人の資金繰り表 入力',
+    desc:'会社の月次の入出金を入力します。損益ではなく「現金の増減」ベースで見ます。',
+    groups:[
+      {key:'income',cls:'g-income',label:'① 売上・入金',fields:[
+        ['sales','売上高（月平均）',''],
+        ['otherRev','その他入金（補助金・雑収入）',''],
+      ]},
+      {key:'cogs',cls:'g-var',label:'② 売上原価',fields:[
+        ['cogs','仕入・材料費',''],
+        ['outsource','外注費',''],
+      ]},
+      {key:'fixed',cls:'g-fixed',label:'③ 販売費・一般管理費（固定費）',fields:[
+        ['execPay','役員報酬',''],
+        ['salary','給与（従業員）',''],
+        ['welfare','法定福利費（社会保険 会社負担）','給与のおよそ15%目安'],
+        ['office','地代家賃（事務所・店舗）',''],
+        ['utility','水道・光熱費',''],
+        ['comm','通信費',''],
+        ['ad','広告宣伝費',''],
+        ['fee','支払手数料・顧問料',''],
+        ['lease','リース料',''],
+        ['travel','旅費交通費',''],
+        ['entertain','接待交際費',''],
+        ['bizOther','その他販管費',''],
+      ]},
+      {key:'finance',cls:'g-tax',label:'④ 借入・税金',fields:[
+        ['loanPrincipal','借入金の返済（元本／月）',''],
+        ['loanInterest','支払利息（月）',''],
+        ['taxRate','法人税等の実効税率(%)','中小企業の目安 約25〜34。不明なら30'],
+        ['consumeTax','消費税の月積立','売上×約10%を目安に積立'],
+      ]},
+    ],
+  },
+};
+
+const MONTHS=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+let current=null;      // 現在の区分キー
+let spotRows=[];       // 一時的な収支
+let lastResult=null;   // 計算結果キャッシュ
+
+/* ---------- 画面遷移 ---------- */
+function setStep(n){
+  document.querySelectorAll('#steps .st').forEach(el=>{
+    const s=+el.dataset.step;
+    el.classList.toggle('active',s===n);
+    el.classList.toggle('done',s<n);
+  });
+}
+function show(id){['screen-entry','screen-input','screen-output'].forEach(s=>{
+  document.getElementById(s).classList.toggle('hidden',s!==id);});window.scrollTo({top:0,behavior:'smooth'});}
+
+function startProfile(key){
+  current=key;
+  const p=PROFILES[key];
+  document.getElementById('profileBadge').textContent='区分：'+p.name;
+  document.getElementById('outBadge').textContent='区分：'+p.name;
+  document.getElementById('inputTitle').textContent=p.title;
+  document.getElementById('inputDesc').textContent=p.desc;
+  buildFields(p);
+  // 月セレクト
+  const ms=document.getElementById('startMonth');
+  ms.innerHTML=MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join('');
+  ms.value=new Date().getMonth();
+  spotRows=[];renderSpot();
+  loadData(); // 保存があれば復元
+  setStep(1);show('screen-input');
+}
+function backToEntry(){setStep(0);show('screen-entry');}
+function backToInput(){setStep(1);show('screen-input');}
+
+/* ---------- 入力フォーム生成 ---------- */
+function buildFields(p){
+  const box=document.getElementById('dynamicFields');
+  let html='';
+  p.groups.forEach(g=>{
+    html+=`<div class="subhead ${g.cls}"><span class="dot"></span>${g.label}</div>`;
+    html+='<div class="grid3">';
+    g.fields.forEach(f=>{
+      const isPct=f[0].includes('Rate');
+      html+=`<div class="field">
+        <label>${f[1]}${f[2]?`<span class="hint"> ${f[2]}</span>`:''}</label>
+        <div class="inp ${isPct?'pct':''}">
+          <input type="number" id="f_${f[0]}" placeholder="0" step="any">
+          <span class="yen">${isPct?'%':'円'}</span>
+        </div></div>`;
+    });
+    html+='</div>';
+  });
+  box.innerHTML=html;
+}
+
+/* ---------- 一時的な収支 ---------- */
+function addSpotRow(item='',type='expense',month=null,amount=''){
+  const m=month===null?(+document.getElementById('startMonth').value):month;
+  spotRows.push({item,type,month:m,amount});
+  renderSpot();
+}
+function renderSpot(){
+  const b=document.getElementById('spotBody');
+  b.innerHTML=spotRows.map((r,i)=>`
+    <tr>
+      <td><input value="${escapeHtml(r.item)}" oninput="spotRows[${i}].item=this.value" placeholder="例）夏のボーナス／車検／設備投資"></td>
+      <td><select onchange="spotRows[${i}].type=this.value">
+        <option value="income" ${r.type==='income'?'selected':''}>収入(+)</option>
+        <option value="expense" ${r.type==='expense'?'selected':''}>支出(−)</option>
+      </select></td>
+      <td><select onchange="spotRows[${i}].month=+this.value">
+        ${MONTHS.map((m,mi)=>`<option value="${mi}" ${r.month===mi?'selected':''}>${m}</option>`).join('')}
+      </select></td>
+      <td><input type="number" value="${r.amount}" oninput="spotRows[${i}].amount=this.value" placeholder="0"></td>
+      <td><button class="del" onclick="spotRows.splice(${i},1);renderSpot()">×</button></td>
+    </tr>`).join('');
+  if(spotRows.length===0){
+    b.innerHTML=`<tr><td colspan="5" style="color:#9aa5b1;text-align:center;padding:16px">
+      ＋ ボタンで、ボーナス・税金の支払い・旅行・車検・設備投資などを追加できます</td></tr>`;
+  }
+}
+function escapeHtml(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+/* ---------- 値の取得 ---------- */
+function val(id){const el=document.getElementById('f_'+id);if(!el)return 0;const v=parseFloat(el.value);return isNaN(v)?0:v;}
+function unit(){return parseFloat(document.getElementById('unit').value)||1;}
+function toYen(v){return v*unit();} // 表示単位→円
+function money(y){ // 円→表示（万円 or 円）
+  const u=unit();
+  if(u===10000){
+    const man=y/10000;
+    return (Math.round(man*10)/10).toLocaleString('ja-JP',{maximumFractionDigits:1})+'万円';
+  }
+  return Math.round(y).toLocaleString('ja-JP')+'円';
+}
+function moneyShort(y){ // グラフ軸用
+  const u=unit();
+  if(u===10000) return (Math.round(y/10000)).toLocaleString()+'万';
+  if(Math.abs(y)>=10000) return (Math.round(y/10000)).toLocaleString()+'万';
+  return Math.round(y).toLocaleString();
+}
+
+/* =========================================================
+   計算エンジン：12か月分の月次キャッシュフローを生成
+   ========================================================= */
+function compute(){
+  const u=unit();
+  const startCash=(parseFloat(document.getElementById('startCash').value)||0)*u;
+  const startM=+document.getElementById('startMonth').value;
+
+  // 月次の「基本」収入・支出（円）を区分別に構築
+  let monthlyIncome=0, monthlyExpense=0;
+  const breakdown={income:[],expense:[]}; // 明細（月表用）
+
+  const add=(arr,name,amtYen)=>{if(amtYen!==0)arr.push({name,amt:amtYen});};
+
+  if(current==='kojin'){
+    const inc=toYen(val('salary'))+toYen(val('sideIncome'))+toYen(val('pension'));
+    add(breakdown.income,'給与',toYen(val('salary')));
+    add(breakdown.income,'副業・その他',toYen(val('sideIncome')));
+    add(breakdown.income,'年金・仕送り',toYen(val('pension')));
+    monthlyIncome=inc;
+    const fixed=['rent','utility','comm','insurance','subsc','carLoan','edu'];
+    const flab={rent:'家賃/ローン',utility:'水道光熱',comm:'通信',insurance:'保険',subsc:'サブスク等',carLoan:'各種ローン',edu:'教育費'};
+    fixed.forEach(k=>add(breakdown.expense,flab[k],toYen(val(k))));
+    const varb=['food','daily','transport','medical','social','hobby','other'];
+    const vlab={food:'食費',daily:'日用品',transport:'交通費',medical:'医療費',social:'交際費',hobby:'趣味娯楽',other:'その他'};
+    varb.forEach(k=>add(breakdown.expense,vlab[k],toYen(val(k))));
+    add(breakdown.expense,'貯蓄',toYen(val('saving')));
+    add(breakdown.expense,'投資',toYen(val('invest')));
+    monthlyExpense=breakdown.expense.reduce((s,x)=>s+x.amt,0);
+
+  }else if(current==='kojinjigyo'){
+    const sales=toYen(val('sales')), otherRev=toYen(val('otherRev'));
+    add(breakdown.income,'売上',sales);
+    add(breakdown.income,'その他収入',otherRev);
+    monthlyIncome=sales+otherRev;
+
+    const bizKeys=['cogs','outsource','bizRent','bizUtil','bizComm','ad','supply','bizTravel','entertain','bizOther'];
+    const blab={cogs:'仕入',outsource:'外注費',bizRent:'事務所家賃',bizUtil:'光熱(事業)',bizComm:'通信',ad:'広告',supply:'消耗品',bizTravel:'旅費交通',entertain:'接待交際',bizOther:'その他経費'};
+    let bizCost=0;
+    bizKeys.forEach(k=>{const a=toYen(val(k));bizCost+=a;add(breakdown.expense,blab[k],a);});
+
+    // 税・社会保険
+    const rate=val('incomeTaxRate')/100;
+    const profit=Math.max(0,(sales+otherRev)-bizCost);
+    const incomeTax=profit*rate;
+    add(breakdown.expense,'所得税・住民税(概算)',incomeTax);
+    add(breakdown.expense,'国民健康保険',toYen(val('healthIns')));
+    add(breakdown.expense,'国民年金',toYen(val('pensionIns')));
+    add(breakdown.expense,'消費税積立',toYen(val('consumeTax')));
+
+    // 生活費
+    add(breakdown.expense,'生活費',toYen(val('living')));
+    add(breakdown.expense,'個人保険',toYen(val('lifeInsurance')));
+    add(breakdown.expense,'貯蓄・投資',toYen(val('saving')));
+    monthlyExpense=breakdown.expense.reduce((s,x)=>s+x.amt,0);
+
+  }else if(current==='houjin'){
+    const sales=toYen(val('sales')), otherRev=toYen(val('otherRev'));
+    add(breakdown.income,'売上高',sales);
+    add(breakdown.income,'その他入金',otherRev);
+    monthlyIncome=sales+otherRev;
+
+    const cogs=toYen(val('cogs')), outsource=toYen(val('outsource'));
+    add(breakdown.expense,'仕入',cogs);
+    add(breakdown.expense,'外注費',outsource);
+
+    const sgaKeys=['execPay','salary','welfare','office','utility','comm','ad','fee','lease','travel','entertain','bizOther'];
+    const slab={execPay:'役員報酬',salary:'給与',welfare:'法定福利',office:'地代家賃',utility:'水道光熱',comm:'通信',ad:'広告宣伝',fee:'支払手数料',lease:'リース料',travel:'旅費交通',entertain:'接待交際',bizOther:'その他販管費'};
+    let sga=0;
+    sgaKeys.forEach(k=>{const a=toYen(val(k));sga+=a;add(breakdown.expense,slab[k],a);});
+
+    add(breakdown.expense,'借入返済(元本)',toYen(val('loanPrincipal')));
+    add(breakdown.expense,'支払利息',toYen(val('loanInterest')));
+
+    // 法人税：営業利益ベースの概算（元本返済・消費税積立は損金外なので除外して算定）
+    const taxRate=val('taxRate')/100;
+    const opProfit=Math.max(0,(sales+otherRev)-cogs-outsource-sga-toYen(val('loanInterest')));
+    const corpTax=opProfit*taxRate;
+    add(breakdown.expense,'法人税等(概算)',corpTax);
+    add(breakdown.expense,'消費税積立',toYen(val('consumeTax')));
+    monthlyExpense=breakdown.expense.reduce((s,x)=>s+x.amt,0);
+  }
+
+  // 一時的な収支をマッピング（開始月からのオフセット index 0..11）
+  const spotByOffset=Array.from({length:12},()=>({inc:0,exp:0,items:[]}));
+  spotRows.forEach(r=>{
+    const amt=(parseFloat(r.amount)||0)*u;
+    if(amt===0||!r.item&&amt===0)return;
+    let off=(r.month-startM+12)%12;
+    if(r.type==='income'){spotByOffset[off].inc+=amt;}
+    else{spotByOffset[off].exp+=amt;}
+    spotByOffset[off].items.push({name:r.item||'一時'+(r.type==='income'?'収入':'支出'),type:r.type,amt});
+  });
+
+  // 12か月分を生成
+  const months=[];
+  let bal=startCash;
+  let minBal=startCash, minMonth=-1;
+  let sumInc=0,sumExp=0;
+  for(let i=0;i<12;i++){
+    const mIdx=(startM+i)%12;
+    const inc=monthlyIncome+spotByOffset[i].inc;
+    const exp=monthlyExpense+spotByOffset[i].exp;
+    const net=inc-exp;
+    bal+=net;
+    sumInc+=inc;sumExp+=exp;
+    if(bal<minBal){minBal=bal;minMonth=i;}
+    months.push({label:MONTHS[mIdx],baseInc:monthlyIncome,baseExp:monthlyExpense,
+      spotInc:spotByOffset[i].inc,spotExp:spotByOffset[i].exp,spotItems:spotByOffset[i].items,
+      inc,exp,net,bal});
+  }
+
+  // 緊急時には止められる任意支出（貯蓄・投資）＝防衛資金の基準からは除く
+  let discretionary=0;
+  if(current==='kojin')      discretionary=toYen(val('saving'))+toYen(val('invest'));
+  else if(current==='kojinjigyo') discretionary=toYen(val('saving'));
+
+  return {startCash,startM,monthlyIncome,monthlyExpense,months,breakdown,
+    minBal,minMonth,sumInc,sumExp,endBal:bal,discretionary,
+    avgNet:(sumInc-sumExp)/12};
+}
+
+/* =========================================================
+   最低必要キャッシュ（緊急資金）の算定
+   ========================================================= */
+function bufferAnalysis(r){
+  // 生活/固定的な出費（毎月必ず出ていくもの）を基準にする。貯蓄・投資は緊急時に止められるため除外
+  const monthlyOut=Math.max(0,r.monthlyExpense-(r.discretionary||0));
+  let months, reasons;
+  if(current==='kojin'){
+    months=6;
+    reasons='一般に、収入が途絶えても生活を立て直せるよう、毎月の支出の<b>3〜6か月分</b>を「生活防衛資金」として確保することが推奨されます。会社員は3か月、収入が不安定な方や扶養家族が多い方は6か月が目安です。';
+  }else if(current==='kojinjigyo'){
+    months=6;
+    reasons='個人事業主は収入変動と、後からまとめて来る<b>税金・国保・年金</b>の支払いに備える必要があります。毎月の事業・生活支出の<b>6か月分</b>に加え、年間の税・社会保険の予定額を別途プールしておくと安全です。';
+  }else{
+    months=4;
+    reasons='法人は取引先の入金遅延や売上減に備え、固定費（人件費・家賃など）の<b>3〜6か月分</b>を手元資金として確保するのが目安です。ここでは中位の4か月で試算しています。';
+  }
+  const baseBuffer=monthlyOut*months;
+
+  // 年間の一時支出（税金・設備など）も備えの対象
+  const yearlySpotExp=r.months.reduce((s,m)=>s+m.spotExp,0);
+
+  const recommended=baseBuffer; // 主指標：固定支出×月数
+  return {monthlyOut,months,baseBuffer,recommended,reasons,yearlySpotExp};
+}
+
+/* =========================================================
+   出力描画
+   ========================================================= */
+function calcAndShow(){
+  lastResult=compute();
+  setStep(2);show('screen-output');
+  renderOutput();
+}
+function renderOutput(){
+  if(!lastResult)return;
+  // 単位変更で再計算が必要なので毎回computeし直す
+  lastResult=compute();
+  const r=lastResult;
+  const p=PROFILES[current];
+
+  document.getElementById('outSummary').textContent=
+    `${p.name}／${r.months[0].label}〜${r.months[11].label}の見通しです。単位「${unit()===10000?'万円':'円'}」で表示中。`;
+
+  // KPI
+  const netTotal=r.sumInc-r.sumExp;
+  const kpi=document.getElementById('kpiGrid');
+  kpi.innerHTML=`
+    <div class="kpi"><div class="lab">年間の収入合計</div><div class="val" style="color:#047857">${money(r.sumInc)}</div><div class="sub">月平均 ${money(r.sumInc/12)}</div></div>
+    <div class="kpi"><div class="lab">年間の支出合計</div><div class="val" style="color:#334155">${money(r.sumExp)}</div><div class="sub">月平均 ${money(r.sumExp/12)}</div></div>
+    <div class="kpi ${netTotal>=0?'pos':'neg'}"><div class="lab">年間の収支（差引）</div><div class="val">${netTotal>=0?'+':''}${money(netTotal)}</div><div class="sub">月平均 ${netTotal>=0?'+':''}${money(r.avgNet)}</div></div>
+    <div class="kpi hl"><div class="lab">12か月後の残高</div><div class="val" style="color:${r.endBal>=0?'#1d4ed8':'#ef4444'}">${money(r.endBal)}</div><div class="sub">開始 ${money(r.startCash)}</div></div>`;
+
+  // キャッシュ枯渇アラート
+  const ca=document.getElementById('cashAlert');
+  if(r.minBal<0){
+    ca.innerHTML=`<div class="alert bad"><span class="ic">🚨</span><div><b>${r.months[r.minMonth].label}に残高がマイナス（${money(r.minBal)}）になります。</b>
+      このままだと資金ショートの可能性があります。支出の見直し、収入増、または不足分（約${money(Math.abs(r.minBal))}）の資金確保を早めに検討してください。</div></div>`;
+  }else if(r.avgNet<0){
+    ca.innerHTML=`<div class="alert warn"><span class="ic">⚠️</span><div><b>毎月平均で${money(Math.abs(r.avgNet))}の赤字です。</b>
+      今は残高が持ちこたえていても、このペースだと約${Math.max(1,Math.floor(r.startCash/Math.abs(r.avgNet)))}か月で貯蓄を使い切る計算です。</div></div>`;
+  }else{
+    ca.innerHTML=`<div class="alert ok"><span class="ic">✅</span><div><b>収支は黒字基調です。</b>
+      12か月で約${money(netTotal)}のプラス。この調子で手元資金を厚くしていきましょう。</div></div>`;
+  }
+
+  // 最低必要キャッシュ
+  const bf=bufferAnalysis(r);
+  document.getElementById('bufferDesc').innerHTML=bf.reasons;
+  const gap=r.startCash-bf.recommended;
+  document.getElementById('bufferGrid').innerHTML=`
+    <div class="kpi"><div class="lab">毎月の必須支出${r.discretionary>0?'<span class="sub" style="font-size:10px">（貯蓄・投資を除く）</span>':''}</div><div class="val" style="font-size:20px">${money(bf.monthlyOut)}</div><div class="sub">これが${bf.months}か月分の基準</div></div>
+    <div class="kpi hl"><div class="lab">🛡️ 最低確保したい手元資金</div><div class="val" style="color:#4f46e5">${money(bf.recommended)}</div><div class="sub">支出 × ${bf.months}か月</div></div>
+    <div class="kpi ${gap>=0?'pos':'neg'}"><div class="lab">現在の過不足</div><div class="val">${gap>=0?'+':''}${money(gap)}</div><div class="sub">${gap>=0?'目安を満たしています':'あと'+money(Math.abs(gap))+'不足'}</div></div>
+    <div class="kpi"><div class="lab">年内の一時支出（税等）</div><div class="val" style="font-size:20px">${money(bf.yearlySpotExp)}</div><div class="sub">別途プール推奨</div></div>`;
+
+  const bfa=document.getElementById('bufferAlert');
+  if(gap>=0){
+    bfa.innerHTML=`<div class="alert ok"><span class="ic">🛡️</span><div>現在の手元資金は目安（${money(bf.recommended)}）を満たしています。突発的な支出が起きても当面は対応可能です。余裕分は運用や事業投資に回すことも検討できます。</div></div>`;
+  }else{
+    const monthsToBuild=r.avgNet>0?Math.ceil(Math.abs(gap)/r.avgNet):null;
+    bfa.innerHTML=`<div class="alert warn"><span class="ic">🛡️</span><div><b>最低確保したい手元資金まで、あと${money(Math.abs(gap))}不足しています。</b>
+      ${monthsToBuild?`今の黒字ペース（月${money(r.avgNet)}）なら約<b>${monthsToBuild}か月</b>で到達できます。`:'まずは毎月の収支を黒字化し、この資金づくりを最優先にしましょう。'}</div></div>`;
+  }
+
+  // ストレステスト初期ラベル
+  document.getElementById('shockMonthLabel').textContent=r.months[Math.min(2,11)].label.replace('月','');
+  renderChart();
+  renderMonthTable();
+  renderAdvice(r,bf);
+}
+
+/* ---------- 月次テーブル ---------- */
+function renderMonthTable(){
+  const r=lastResult;
+  const t=document.getElementById('monthTable');
+  let h='<thead><tr><th class="lab">項目＼月</th>';
+  r.months.forEach(m=>h+=`<th>${m.label}</th>`);
+  h+='<th>年間合計</th></tr></thead><tbody>';
+
+  // 収入行
+  h+=`<tr class="income"><td class="lab">収入</td>`;
+  let sum=0;r.months.forEach(m=>{h+=`<td>${money(m.inc)}</td>`;sum+=m.inc;});
+  h+=`<td>${money(sum)}</td></tr>`;
+
+  // うち一時収入
+  if(r.months.some(m=>m.spotInc>0)){
+    h+=`<tr class="income"><td class="lab" style="font-weight:400;color:#6b7684">　うち一時収入</td>`;
+    let s=0;r.months.forEach(m=>{h+=`<td style="color:#94a3b8">${m.spotInc?money(m.spotInc):'—'}</td>`;s+=m.spotInc;});
+    h+=`<td>${money(s)}</td></tr>`;
+  }
+
+  // 支出行
+  h+=`<tr class="expense"><td class="lab">支出</td>`;
+  sum=0;r.months.forEach(m=>{h+=`<td>${money(m.exp)}</td>`;sum+=m.exp;});
+  h+=`<td>${money(sum)}</td></tr>`;
+
+  if(r.months.some(m=>m.spotExp>0)){
+    h+=`<tr class="expense"><td class="lab" style="font-weight:400;color:#6b7684">　うち一時支出</td>`;
+    let s=0;r.months.forEach(m=>{h+=`<td style="color:#94a3b8">${m.spotExp?money(m.spotExp):'—'}</td>`;s+=m.spotExp;});
+    h+=`<td>${money(s)}</td></tr>`;
+  }
+
+  // 収支
+  h+=`<tr class="net"><td class="lab">月間収支</td>`;
+  sum=0;r.months.forEach(m=>{h+=`<td class="${m.net<0?'negcell':''}">${m.net>=0?'+':''}${money(m.net)}</td>`;sum+=m.net;});
+  h+=`<td class="${sum<0?'negcell':''}">${sum>=0?'+':''}${money(sum)}</td></tr>`;
+
+  // 残高
+  h+=`<tr class="bal"><td class="lab">月末残高</td>`;
+  r.months.forEach(m=>{h+=`<td class="${m.bal<0?'negcell':''}">${money(m.bal)}</td>`;});
+  h+=`<td>—</td></tr>`;
+
+  h+='</tbody>';
+  t.innerHTML=h;
+}
+
+/* ---------- グラフ ---------- */
+function renderChart(){
+  const r=lastResult;if(!r)return;
+  const incDrop=+document.getElementById('incDrop').value;
+  const shockAmt=(+document.getElementById('shockAmt').value)* (unit()===10000?10000:10000); // スライダーは万円単位
+  document.getElementById('incLabel').textContent=incDrop;
+  document.getElementById('shockLabel').textContent=+document.getElementById('shockAmt').value;
+  const shockMonthOff=Math.min(2,11);
+
+  // 基本 & ストレス残高系列
+  const base=[r.startCash], stress=[r.startCash];
+  let sb=r.startCash, ss=r.startCash;
+  for(let i=0;i<12;i++){
+    const m=r.months[i];
+    sb+=m.net;base.push(sb);
+    const sInc=(m.inc)*(1-incDrop/100);
+    let sNet=sInc-m.exp;
+    if(i===shockMonthOff) sNet-=shockAmt;
+    ss+=sNet;stress.push(ss);
+  }
+
+  const cv=document.getElementById('chart');
+  const ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const padL=64,padR=20,padT=20,padB=34;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+
+  const bf=bufferAnalysis(r);
+  const allVals=base.concat(stress).concat([0,bf.recommended]);
+  let maxV=Math.max(...allVals), minV=Math.min(...allVals);
+  if(maxV===minV)maxV=minV+1;
+  const range=maxV-minV;
+  maxV+=range*0.08; minV-=range*0.08;
+  const x=i=>padL+plotW*i/12;
+  const y=v=>padT+plotH*(1-(v-minV)/(maxV-minV));
+
+  // グリッド＆Y軸ラベル
+  ctx.strokeStyle='#eef1f5';ctx.fillStyle='#9aa5b1';ctx.font='11px sans-serif';ctx.textAlign='right';
+  const ticks=5;
+  for(let i=0;i<=ticks;i++){
+    const v=minV+(maxV-minV)*i/ticks;
+    const yy=y(v);
+    ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();
+    ctx.fillText(moneyShort(v),padL-8,yy+4);
+  }
+  // ゼロライン
+  if(minV<0&&maxV>0){ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(padL,y(0));ctx.lineTo(W-padR,y(0));ctx.stroke();ctx.lineWidth=1;}
+
+  // 最低ライン
+  ctx.strokeStyle='#94a3b8';ctx.setLineDash([6,5]);ctx.beginPath();ctx.moveTo(padL,y(bf.recommended));ctx.lineTo(W-padR,y(bf.recommended));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#64748b';ctx.textAlign='left';ctx.fillText('最低ライン '+moneyShort(bf.recommended),padL+4,y(bf.recommended)-6);
+
+  // X軸ラベル
+  ctx.fillStyle='#9aa5b1';ctx.textAlign='center';
+  const labs=['開始'].concat(r.months.map(m=>m.label.replace('月','')));
+  for(let i=0;i<=12;i++){if(i%1===0)ctx.fillText(labs[i],x(i),H-14);}
+
+  // 塗り（基本）
+  const drawArea=(arr,color,fill)=>{
+    ctx.beginPath();ctx.moveTo(x(0),y(arr[0]));
+    for(let i=1;i<arr.length;i++)ctx.lineTo(x(i),y(arr[i]));
+    if(fill){ctx.lineTo(x(arr.length-1),y(minV));ctx.lineTo(x(0),y(minV));ctx.closePath();
+      ctx.fillStyle=fill;ctx.fill();}
+    else{ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.stroke();}
+  };
+  drawArea(base,null,'rgba(37,99,235,.10)');
+  // ストレス線（変化がある時だけ）
+  const stressActive=(incDrop>0||shockAmt>0);
+  if(stressActive)drawArea(stress,'#ef4444',null);
+  drawArea(base,'#2563eb',null);
+
+  // 点
+  const dot=(arr,color)=>{arr.forEach((v,i)=>{ctx.beginPath();ctx.arc(x(i),y(v),3,0,7);ctx.fillStyle=color;ctx.fill();});};
+  if(stressActive)dot(stress,'#ef4444');
+  dot(base,'#2563eb');
+
+  // ストレス時の最低残高注記
+  if(stressActive){
+    const sMin=Math.min(...stress);
+    const note=document.getElementById('cashAlert');
+  }
+}
+
+/* ---------- アドバイス ---------- */
+function renderAdvice(r,bf){
+  const tips=[];
+  if(current==='kojin'){
+    tips.push('固定費（特に通信・保険・サブスク）は一度見直すと効果が長続きします。');
+    tips.push('先取り貯蓄（給料日に自動で貯蓄口座へ）にすると、無理なく手元資金が貯まります。');
+  }else if(current==='kojinjigyo'){
+    tips.push('税金・国保は後からまとめて来ます。売上の15〜20%を「納税用口座」に毎月避けておくと安心です。');
+    tips.push('売上の入金サイトと経費の支払いサイトのズレに注意。入金前に支払いが来る月は要チェックです。');
+  }else{
+    tips.push('資金繰りは「利益」ではなく「入金と出金のタイミング」で見ます。売掛金の回収を早め、買掛金の支払いは無理のない範囲で遅らせると資金が楽になります。');
+    tips.push('固定費（人件費・家賃）の数か月分を常に確保し、設備投資は手元資金と借入のバランスで判断しましょう。');
+  }
+  let extra='';
+  if(r.minBal<0)extra=`<div class="alert bad" style="margin-top:8px"><span class="ic">📌</span><div>最優先事項：${r.months[r.minMonth].label}の資金ショート回避。融資・支払い時期の調整・支出削減のいずれかを今のうちに手当てしてください。</div></div>`;
+  document.getElementById('advice').innerHTML=
+    '<div style="text-align:left;background:#f8fafc;border-radius:12px;padding:16px;margin-top:8px">'
+    +'<b>💡 ワンポイント</b><ul style="margin:8px 0 0;padding-left:20px">'
+    +tips.map(t=>`<li style="margin:4px 0">${t}</li>`).join('')
+    +'</ul></div>'+extra;
+}
+
+/* =========================================================
+   保存・復元・サンプル
+   ========================================================= */
+function saveData(){
+  const data={current,unit:document.getElementById('unit').value,
+    startCash:document.getElementById('startCash').value,
+    startMonth:document.getElementById('startMonth').value,
+    fields:{},spotRows};
+  PROFILES[current].groups.forEach(g=>g.fields.forEach(f=>{
+    const el=document.getElementById('f_'+f[0]);if(el)data.fields[f[0]]=el.value;}));
+  localStorage.setItem('cashflow_'+current,JSON.stringify(data));
+  toast('💾 保存しました');
+}
+function loadData(){
+  const raw=localStorage.getItem('cashflow_'+current);if(!raw)return;
+  try{
+    const d=JSON.parse(raw);
+    document.getElementById('unit').value=d.unit||'10000';
+    document.getElementById('startCash').value=d.startCash||'';
+    if(d.startMonth!=null)document.getElementById('startMonth').value=d.startMonth;
+    Object.entries(d.fields||{}).forEach(([k,v])=>{const el=document.getElementById('f_'+k);if(el)el.value=v;});
+    spotRows=d.spotRows||[];renderSpot();
+  }catch(e){}
+}
+function toast(msg){
+  const t=document.createElement('div');t.textContent=msg;
+  t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f2933;color:#fff;padding:10px 22px;border-radius:999px;font-size:13px;z-index:99;box-shadow:0 6px 20px rgba(0,0,0,.2)';
+  document.body.appendChild(t);setTimeout(()=>t.remove(),1800);
+}
+
+function loadSample(){
+  document.getElementById('unit').value='10000';
+  const set=(id,v)=>{const el=document.getElementById('f_'+id);if(el)el.value=v;};
+  if(current==='kojin'){
+    document.getElementById('startCash').value=150;
+    set('salary',28);set('sideIncome',3);set('rent',9);set('utility',2);set('comm',1.2);
+    set('insurance',2);set('subsc',0.8);set('food',6);set('daily',1);set('transport',1.5);
+    set('social',2);set('hobby',2);set('saving',3);set('invest',3);
+    spotRows=[{item:'夏のボーナス',type:'income',month:5,amount:40},
+              {item:'冬のボーナス',type:'income',month:11,amount:40},
+              {item:'家族旅行',type:'expense',month:7,amount:20},
+              {item:'家電買い替え',type:'expense',month:2,amount:15}];
+  }else if(current==='kojinjigyo'){
+    document.getElementById('startCash').value=200;
+    set('sales',70);set('cogs',10);set('outsource',8);set('bizRent',6);set('bizUtil',1.5);
+    set('bizComm',1);set('ad',3);set('supply',1.5);set('bizTravel',2);set('entertain',2);
+    set('incomeTaxRate',15);set('healthIns',3);set('pensionIns',1.75);set('consumeTax',5);
+    set('living',22);set('lifeInsurance',1.5);set('saving',3);
+    spotRows=[{item:'所得税・住民税の納付',type:'expense',month:2,amount:35},
+              {item:'PC・機材の買い替え',type:'expense',month:8,amount:25}];
+  }else{
+    document.getElementById('startCash').value=1200;
+    set('sales',800);set('otherRev',0);set('cogs',260);set('outsource',80);
+    set('execPay',80);set('salary',180);set('welfare',35);set('office',30);set('utility',8);
+    set('comm',5);set('ad',30);set('fee',12);set('lease',8);set('travel',10);set('entertain',8);
+    set('loanPrincipal',25);set('loanInterest',3);set('taxRate',30);set('consumeTax',60);
+    spotRows=[{item:'賞与（夏）',type:'expense',month:5,amount:150},
+              {item:'賞与（冬）',type:'expense',month:11,amount:150},
+              {item:'設備投資',type:'expense',month:9,amount:300},
+              {item:'法人税等の納付',type:'expense',month:1,amount:200}];
+  }
+  renderSpot();
+  toast('サンプルを入力しました');
+}
+</script>
+</body>
+</html>

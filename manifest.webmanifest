@@ -1,0 +1,17 @@
+{
+  "name": "キャッシュフロー表メーカー",
+  "short_name": "キャッシュフロー",
+  "description": "個人・個人事業主・法人向けのキャッシュフロー表。1年先の収支と、突発的な支出に備えた最低限の手元資金がわかります。",
+  "lang": "ja",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e7edf5",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
