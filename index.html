@@ -326,6 +326,15 @@
    データ定義：区分ごとの入力項目
    ========================================================= */
 const YEN='円';
+const NOW_YEAR=2026; // 現在年（税制判定の基準）
+const OPEN_YEAR_OPTS=(function(){
+  const a=[];
+  for(let y=NOW_YEAR;y>=NOW_YEAR-9;y--){ a.push([String(y), y===NOW_YEAR?(y+'年（今年開業）'):(y+'年')]); }
+  a.push([String(NOW_YEAR-10),(NOW_YEAR-10)+'年以前']);
+  return a;
+})();
+const INVOICE_OPTS=[['no','登録していない（免税事業者）'],['yes','登録している（課税事業者）']];
+let spTaxTouched=false; // 個人事業主：税欄をユーザーが手修正したか
 const PROFILES={
   kojin:{
     name:'個人（家計）',
@@ -382,11 +391,16 @@ const PROFILES={
         ['entertain','接待交際費',''],
         ['bizOther','その他経費',''],
       ]},
-      {key:'tax',cls:'g-tax',label:'③ 税金・社会保険（月あたり積立目安）',fields:[
-        ['incomeTaxRate','所得税・住民税の見込み率(%)','所得に対する概算。不明なら15前後'],
-        ['healthIns','国民健康保険（月額）',''],
-        ['pensionIns','国民年金（月額）','2026年目安 約17,500円'],
-        ['consumeTax','消費税の月積立（課税事業者のみ）','免税事業者は0'],
+      {key:'tax',cls:'g-tax',label:'③ 税金・社会保険（売上・経費から自動見積り）',
+        pre:`<div class="row-note" style="background:#eef2ff;color:#3730a3">🧮 <b>開業年とインボイス登録</b>を選んで下の「自動見積り」を押すと、売上・経費から税金・保険料を概算で自動入力します。<b>あくまで目安</b>なので、各欄は手入力で修正できます。</div>
+        <div style="margin:2px 0 12px"><button type="button" class="btn primary mini" onclick="estimateSPTaxes(true)">🧮 売上・経費から税金・保険料を自動見積り</button></div>`,
+        fields:[
+        ['openYear','開業した年','開業2年以内は消費税が原則免税','select',OPEN_YEAR_OPTS],
+        ['invoice','インボイス登録の有無','登録すると消費税の課税事業者に','select',INVOICE_OPTS],
+        ['incomeTaxRate','所得税・住民税・事業税の率(%)','事業所得に対する概算'],
+        ['healthIns','国民健康保険（月額）','自治体・世帯人数で変動'],
+        ['pensionIns','国民年金（月額）','2026年目安 約17,510円'],
+        ['consumeTax','消費税の月積立','インボイス登録者向け。免税なら0'],
       ]},
       {key:'variable',cls:'g-var',label:'④ 生活費（家計）',fields:[
         ['living','生活費 合計（家賃・食費など）','事業按分後の家庭の生活費'],
@@ -457,6 +471,7 @@ function startProfile(key){
   document.getElementById('inputTitle').textContent=p.title;
   document.getElementById('inputDesc').textContent=p.desc;
   buildFields(p);
+  if(key==='kojinjigyo') setupSPTaxAuto();
   // 月セレクト
   const ms=document.getElementById('startMonth');
   ms.innerHTML=MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join('');
@@ -474,15 +489,25 @@ function buildFields(p){
   let html='';
   p.groups.forEach(g=>{
     html+=`<div class="subhead ${g.cls}"><span class="dot"></span>${g.label}</div>`;
+    if(g.pre) html+=g.pre;
     html+='<div class="grid3">';
     g.fields.forEach(f=>{
-      const isPct=f[0].includes('Rate');
-      html+=`<div class="field">
-        <label>${f[1]}${f[2]?`<span class="hint"> ${f[2]}</span>`:''}</label>
-        <div class="inp ${isPct?'pct':''}">
-          <input type="number" id="f_${f[0]}" placeholder="0" step="any">
-          <span class="yen">${isPct?'%':'円'}</span>
-        </div></div>`;
+      const label=`${f[1]}${f[2]?`<span class="hint"> ${f[2]}</span>`:''}`;
+      if(f[3]==='select'){
+        const opts=f[4].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('');
+        html+=`<div class="field">
+          <label>${label}</label>
+          <div class="inp"><select id="f_${f[0]}" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit">${opts}</select></div>
+        </div>`;
+      }else{
+        const isPct=f[0].includes('Rate');
+        html+=`<div class="field">
+          <label>${label}</label>
+          <div class="inp ${isPct?'pct':''}">
+            <input type="number" id="f_${f[0]}" placeholder="0" step="any">
+            <span class="yen">${isPct?'%':'円'}</span>
+          </div></div>`;
+      }
     });
     html+='</div>';
   });
@@ -535,6 +560,108 @@ function moneyShort(y){ // グラフ軸用
   if(Math.abs(y)>=10000) return (Math.round(y/10000)).toLocaleString()+'万';
   return Math.round(y).toLocaleString();
 }
+// 円 → 現在の表示単位で入力欄にセット
+function setFieldFromYen(id,yen){
+  const u=unit();
+  let v=yen/u;
+  v = u===10000 ? Math.round(v*10)/10 : Math.round(v);
+  const el=document.getElementById('f_'+id); if(el) el.value=v;
+}
+
+/* =========================================================
+   個人事業主：売上・経費・開業年・インボイスから税金・保険料を自動見積り
+   （確定値ではなく概算。各欄は手入力で上書き可能）
+   ========================================================= */
+function estimateSPTaxes(fromButton){
+  if(current!=='kojinjigyo')return;
+  const salesM=toYen(val('sales'))+toYen(val('otherRev'));
+  const bizKeys=['cogs','outsource','bizRent','bizUtil','bizComm','ad','supply','bizTravel','entertain','bizOther'];
+  let costM=0; bizKeys.forEach(k=>costM+=toYen(val(k)));
+  const annualSales=salesM*12;
+  const annualCost=costM*12;
+  const annualProfit=Math.max(0,annualSales-annualCost); // 事業所得（各種控除前）
+
+  const AOIRO=650000;           // 青色申告特別控除（前提）
+  const pensionMonthly=17510;   // 国民年金（2026目安）
+
+  // 国民健康保険（概算：所得割＋均等割、上限あり。自治体差が大きい）
+  const kokuhoIncomeBase=Math.max(0,annualProfit-AOIRO-430000);
+  let annualKokuho=kokuhoIncomeBase*0.10+60000;
+  annualKokuho=Math.max(0,Math.min(annualKokuho,900000));
+
+  // 所得控除
+  const socialDeduction=annualKokuho+pensionMonthly*12;
+  const incomeTaxable=Math.max(0,annualProfit-AOIRO-socialDeduction-480000);   // 基礎控除48万
+  const residentTaxable=Math.max(0,annualProfit-AOIRO-socialDeduction-430000); // 基礎控除43万
+
+  // 所得税（累進速算表）＋復興特別所得税2.1%
+  function incomeTaxOf(t){
+    const b=[[1950000,0.05,0],[3300000,0.10,97500],[6950000,0.20,427500],
+             [9000000,0.23,636000],[18000000,0.33,1536000],[40000000,0.40,2796000],[Infinity,0.45,4796000]];
+    for(let i=0;i<b.length;i++){ if(t<=b[i][0]) return Math.max(0,t*b[i][1]-b[i][2]); }
+    return 0;
+  }
+  const firstYear=(+document.getElementById('f_openYear').value)===NOW_YEAR; // 今年開業
+  let incomeTax=incomeTaxOf(incomeTaxable)*1.021;
+  // 住民税（所得割約10％＋均等割）。開業初年度は前年所得ベースのため概ね0
+  let resident= firstYear ? 0 : (residentTaxable*0.10+(residentTaxable>0?5000:0));
+  // 個人事業税（事業主控除290万、標準5％）
+  const bizTax=Math.max(0,annualProfit-2900000)*0.05;
+  const totalDirectTax=incomeTax+resident+bizTax;
+
+  // 事業所得に対する実効率（compute側は 月次事業所得×率 で税額化）
+  const effRate= annualProfit>0 ? (totalDirectTax/annualProfit*100) : 0;
+
+  // 消費税
+  const openYear=+document.getElementById('f_openYear').value;
+  const invoice=document.getElementById('f_invoice').value==='yes';
+  const yearsSinceOpen=NOW_YEAR-openYear;
+  const smallSales=annualSales<=10000000; // 基準期間の売上1000万以下相当
+  let annualConsumeTax=0;
+  if(invoice){
+    if(smallSales){
+      annualConsumeTax=annualSales*0.10*0.20;          // 2割特例：売上税額の2割
+    }else{
+      annualConsumeTax=Math.max(0,annualSales-annualCost)*10/110; // 本則ざっくり
+    }
+  }else{
+    // 未登録＝免税前提。ただし開業2年超かつ売上1000万超は課税
+    if(!smallSales && yearsSinceOpen>=2){
+      annualConsumeTax=Math.max(0,annualSales-annualCost)*10/110;
+    }
+  }
+
+  // 各欄へ反映（月額 or 率）
+  document.getElementById('f_incomeTaxRate').value=Math.round(effRate*10)/10;
+  setFieldFromYen('healthIns',annualKokuho/12);
+  setFieldFromYen('pensionIns',pensionMonthly);
+  setFieldFromYen('consumeTax',annualConsumeTax/12);
+
+  spTaxTouched=false; // 自動同期を再度有効化
+  if(fromButton){
+    const msg = invoice
+      ? (smallSales?'消費税は「2割特例」で概算しました':'消費税は本則課税で概算しました')
+      : (yearsSinceOpen<2?'開業2年以内のため消費税は免税(0)で見積りました':(smallSales?'売上1000万以下のため消費税は免税(0)':'消費税を概算しました'));
+    toast('🧮 税金・保険料を自動入力しました（'+msg+'）');
+  }
+}
+
+// 個人事業主：売上/経費/開業年/インボイスを変更したら（手修正が無ければ）自動で再見積り
+function setupSPTaxAuto(){
+  spTaxTouched=false;
+  // 既定値
+  const oy=document.getElementById('f_openYear'); if(oy) oy.value=String(NOW_YEAR-2);
+  const iv=document.getElementById('f_invoice');  if(iv) iv.value='no';
+  ['incomeTaxRate','healthIns','pensionIns','consumeTax'].forEach(id=>{
+    const el=document.getElementById('f_'+id);
+    if(el) el.addEventListener('input',()=>{spTaxTouched=true;});
+  });
+  const triggers=['sales','otherRev'].concat(['cogs','outsource','bizRent','bizUtil','bizComm','ad','supply','bizTravel','entertain','bizOther'],['openYear','invoice']);
+  triggers.forEach(id=>{
+    const el=document.getElementById('f_'+id);
+    if(el) el.addEventListener('change',()=>{ if(!spTaxTouched) estimateSPTaxes(false); });
+  });
+}
 
 /* =========================================================
    計算エンジン：12か月分の月次キャッシュフローを生成
@@ -581,7 +708,7 @@ function compute(){
     const rate=val('incomeTaxRate')/100;
     const profit=Math.max(0,(sales+otherRev)-bizCost);
     const incomeTax=profit*rate;
-    add(breakdown.expense,'所得税・住民税(概算)',incomeTax);
+    add(breakdown.expense,'所得税・住民税・事業税(概算)',incomeTax);
     add(breakdown.expense,'国民健康保険',toYen(val('healthIns')));
     add(breakdown.expense,'国民年金',toYen(val('pensionIns')));
     add(breakdown.expense,'消費税積立',toYen(val('consumeTax')));
@@ -947,8 +1074,9 @@ function loadSample(){
     document.getElementById('startCash').value=200;
     set('sales',70);set('cogs',10);set('outsource',8);set('bizRent',6);set('bizUtil',1.5);
     set('bizComm',1);set('ad',3);set('supply',1.5);set('bizTravel',2);set('entertain',2);
-    set('incomeTaxRate',15);set('healthIns',3);set('pensionIns',1.75);set('consumeTax',5);
+    set('openYear',String(NOW_YEAR-2));set('invoice','yes'); // 2年前に開業・インボイス登録済み
     set('living',22);set('lifeInsurance',1.5);set('saving',3);
+    estimateSPTaxes(false); // 税金・保険料は売上・経費から自動見積り
     spotRows=[{item:'所得税・住民税の納付',type:'expense',month:2,amount:35},
               {item:'PC・機材の買い替え',type:'expense',month:8,amount:25}];
   }else{
